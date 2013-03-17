@@ -17,6 +17,8 @@ class Tuple
 	}
 }
 
+class BoltProcessException extends Exception {}
+
 abstract class ShellComponent
 {
 	protected $pid;
@@ -80,9 +82,8 @@ abstract class ShellComponent
 				continue;
 			}
 			
-			$message .= $line . "\n";			
+			$message .= $line . "\n";
 		}
-		
 		return trim($message);
 	}
 	
@@ -117,9 +118,38 @@ abstract class ShellComponent
 	{
 		echo $message . "\n";
 		echo "end\n";
-		fflush(STDOUT);	
+		fflush(STDOUT);
 	}
-	
+
+	protected function sendSync()
+	{
+		$command = array(
+			'command' => 'sync'
+		);
+		$this->sendCommand($command);
+		//$this->sendLog("[".__METHOD__."]: SYNC");
+	}
+
+	protected function sendAck(Tuple $tuple)
+	{
+		$command = array(
+			'command' => 'ack',
+			'id' => $tuple->id
+		);
+		$this->sendCommand($command);
+		//$this->sendLog("[".__METHOD__."]: ".$tuple->id);
+	}
+
+	protected function sendFail(Tuple $tuple)
+	{
+		$command = array(
+			'command' => 'fail',
+			'id' => $tuple->id
+		);
+		$this->sendCommand($command);
+		//$this->sendLog("[".__METHOD__."]: ".$tuple->id);
+	}
+
 }
 
 abstract class ShellBolt extends ShellComponent implements iShellBolt {
@@ -151,11 +181,9 @@ abstract class ShellBolt extends ShellComponent implements iShellBolt {
 							'task' => null, 
 							'tuple' => null
 						),
-						
 						$command);
 		
 						$tuple = new Tuple($tupleMap['id'], $tupleMap['comp'], $tupleMap['stream'], $tupleMap['task'], $tupleMap['tuple']);
-						
 						$this->process($tuple);
 					}
 				}
@@ -204,34 +232,14 @@ abstract class ShellBolt extends ShellComponent implements iShellBolt {
 		$this->sendCommand($command);
 	}
 
-	protected function emit($tuple, $stream = null, $anchors = array())
+	protected function emit(array $tuple, $stream = null, $anchors = array())
 	{
 		$this->emitTuple($tuple, $stream, $anchors);
 	}
 
-	protected function emitDirect($directTask, $tuple, $stream = null, $anchors = array())
+	protected function emitDirect($directTask, array $tuple, $stream = null, $anchors = array())
 	{
 		$this->emitTuple($tuple, $stream, $anchors, $directTask);
-	}
-
-	protected function ack(Tuple $tuple)
-	{
-		$command = array(
-			'command' => 'ack',
-			'id' => $tuple->id
-		);
-		
-		$this->sendCommand($command);
-	}
-
-	protected function fail(Tuple $tuple)
-	{
-		$command = array(
-			'command' => 'fail',
-			'id' => $tuple->id
-		);
-		
-		$this->sendCommand($command);
 	}
 }
 
@@ -255,22 +263,19 @@ abstract class BasicBolt extends ShellBolt
 							'task' => null, 
 							'tuple' => null
 						),
-						
 						$command);
 						
 						$tuple = new Tuple($tupleMap['id'], $tupleMap['comp'], $tupleMap['stream'], $tupleMap['task'], $tupleMap['tuple']);
-						
 						$this->anchor_tuple = $tuple;
 						
 						try
 						{
 							$processed = $this->process($tuple);
-
-							$this->ack($tuple);
+							$this->sendAck($tuple);
 						}
 						catch (BoltProcessException $e)
 						{
-							$this->fail($tuple);
+							$this->sendFail($tuple);
 						}
 					}
 				}
@@ -295,8 +300,7 @@ abstract class ShellSpout extends ShellComponent implements iShellSpout
 		$this->init($this->stormConf, $this->topologyContext);
 	}
 	
-	
-	abstract protected function nextTuple();	
+	abstract protected function nextTuple();
 	abstract protected function ack($tuple_id);
 	abstract protected function fail($tuple_id);
 	
@@ -309,7 +313,7 @@ abstract class ShellSpout extends ShellComponent implements iShellSpout
 			if (is_array($command))
 			{
 				if (isset($command['command']))
-				{					
+				{
 					if ($command['command'] == 'ack')
 					{
 						$this->ack($command['id']);
@@ -323,6 +327,7 @@ abstract class ShellSpout extends ShellComponent implements iShellSpout
 						$this->nextTuple();
 					}
 				}
+				$this->sendSync();
 			}
 		}
 	}
@@ -330,16 +335,6 @@ abstract class ShellSpout extends ShellComponent implements iShellSpout
 	protected function init($stormConf, $topologyContext)
 	{
 		return;
-	}
-	
-	final protected function emit(array $tuple, $messageId = null, $streamId = null)
-	{
-		return $this->emitTuple($tuple, $messageId, $streamId, null);
-	}
-	
-	final protected function emitDirect($directTask, array $tuple, $messageId = null, $streamId = null)
-	{
-		return $this->emitTuple($tuple, $messageId, $streamId, $directTask);
 	}
 	
 	final private function emitTuple(array $tuple, $messageId = null, $streamId = null, $directTask = null)
@@ -367,6 +362,14 @@ abstract class ShellSpout extends ShellComponent implements iShellSpout
 
 		return $this->sendCommand($command);
 	}
-}
 
-class BoltProcessException extends Exception {}
+	final protected function emit(array $tuple, $messageId = null, $streamId = null)
+	{
+		return $this->emitTuple($tuple, $messageId, $streamId, null);
+	}
+	
+	final protected function emitDirect($directTask, array $tuple, $messageId = null, $streamId = null)
+	{
+		return $this->emitTuple($tuple, $messageId, $streamId, $directTask);
+	}
+}
