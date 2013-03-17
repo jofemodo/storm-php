@@ -120,36 +120,6 @@ abstract class ShellComponent
 		echo "end\n";
 		fflush(STDOUT);
 	}
-
-	protected function sendSync()
-	{
-		$command = array(
-			'command' => 'sync'
-		);
-		$this->sendCommand($command);
-		//$this->sendLog("[".__METHOD__."]: SYNC");
-	}
-
-	protected function sendAck(Tuple $tuple)
-	{
-		$command = array(
-			'command' => 'ack',
-			'id' => $tuple->id
-		);
-		$this->sendCommand($command);
-		//$this->sendLog("[".__METHOD__."]: ".$tuple->id);
-	}
-
-	protected function sendFail(Tuple $tuple)
-	{
-		$command = array(
-			'command' => 'fail',
-			'id' => $tuple->id
-		);
-		$this->sendCommand($command);
-		//$this->sendLog("[".__METHOD__."]: ".$tuple->id);
-	}
-
 }
 
 abstract class ShellBolt extends ShellComponent implements iShellBolt {
@@ -240,6 +210,26 @@ abstract class ShellBolt extends ShellComponent implements iShellBolt {
 	protected function emitDirect($directTask, array $tuple, $stream = null, $anchors = array())
 	{
 		$this->emitTuple($tuple, $stream, $anchors, $directTask);
+	}
+
+	protected function sendAck(Tuple $tuple)
+	{
+		$command = array(
+			'command' => 'ack',
+			'id' => $tuple->id
+		);
+		$this->sendCommand($command);
+		//$this->sendLog("[".__METHOD__."]: ".$tuple->id);
+	}
+
+	protected function sendFail(Tuple $tuple)
+	{
+		$command = array(
+			'command' => 'fail',
+			'id' => $tuple->id
+		);
+		$this->sendCommand($command);
+		//$this->sendLog("[".__METHOD__."]: ".$tuple->id);
 	}
 }
 
@@ -372,4 +362,14 @@ abstract class ShellSpout extends ShellComponent implements iShellSpout
 	{
 		return $this->emitTuple($tuple, $messageId, $streamId, $directTask);
 	}
+
+	final protected function sendSync()
+	{
+		$command = array(
+			'command' => 'sync'
+		);
+		$this->sendCommand($command);
+		//$this->sendLog("[".__METHOD__."]: SYNC");
+	}
+
 }
